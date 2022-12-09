@@ -23,16 +23,19 @@ var asciicamCmd = &cobra.Command{
 		// Get camera and capabilities
 		settings, err := utils.NewSettings(args[0])
 		if err != nil {
-			panic(err.Error())
+			fmt.Println(err.Error())
+			return
 		}
 		
 		canvas, err := tcell.NewScreen()
 		if err != nil {
-			panic(err)
+			fmt.Println(err.Error())
+			return
 		}
 		err = canvas.Init()
 		if err != nil {
-			panic(err)
+			fmt.Println(err.Error())
+			return
 		}
 		defer canvas.Fini()
 		
@@ -92,6 +95,7 @@ var asciicamCmd = &cobra.Command{
 			}
 		}
 		canvas.Show()
+	
 	ready:
 		for {
 			input := canvas.PollEvent()
@@ -206,15 +210,17 @@ var asciicamCmd = &cobra.Command{
 				}
 			}
 		}()
+
+		frame := gocv.NewMat()
 	mainloop:
 		for {
 			select {
 			case <-quit:
 				break mainloop
 			default:
-				frame := gocv.NewMat()
 				cam.Cap.Read(&frame)
 				asciify.Asciify(cam, &frame, canvas, settings)
+				canvas.Show()
 			}
 		}
 	},
@@ -226,7 +232,7 @@ func Execute() error {
 
 func init() {
 	asciicamCmd.PersistentFlags().BoolP("help", "h", false, "Print usage")
-	asciicamCmd.PersistentFlags().Lookup("help").Hidden = true
+	// asciicamCmd.PersistentFlags().Lookup("help").Hidden = true
 	cobra.EnableCommandSorting = false
 	asciicamCmd.CompletionOptions.DisableDefaultCmd = true
 }

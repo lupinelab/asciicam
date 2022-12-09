@@ -53,5 +53,4 @@ func Asciify(cam *utils.Camera, frame *gocv.Mat, canvas tcell.Screen, settings *
 			
 }
 	}
-	canvas.Show()
 }
