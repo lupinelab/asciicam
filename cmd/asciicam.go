@@ -232,7 +232,6 @@ func Execute() error {
 
 func init() {
 	asciicamCmd.PersistentFlags().BoolP("help", "h", false, "Print usage")
-	// asciicamCmd.PersistentFlags().Lookup("help").Hidden = true
 	cobra.EnableCommandSorting = false
 	asciicamCmd.CompletionOptions.DisableDefaultCmd = true
 }
