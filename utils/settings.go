@@ -9,9 +9,10 @@ type Settings struct {
 	Contrast_caps         map[string]float64
 	Brightness            float64
 	Contrast              float64
-	Supported_resolutions []string
+	Supported_resolutions [	]string
+	SingleColourMode      bool
 	Colour                map[string]int32
-	ShowStats             bool
+	ShowInfo              bool
 	ShowHelp              bool
 }
 
@@ -50,12 +51,14 @@ func NewSettings(device string) (*Settings, error) {
 		s.Supported_resolutions = append(s.Supported_resolutions, fs.GetString())
 	}
 
+	s.SingleColourMode = true
+
 	s.Colour = make(map[string]int32)
 	s.Colour["R"] = 13
 	s.Colour["G"] = 188
-	s.Colour["B"] = 123
+	s.Colour["B"] = 121
 
-	s.ShowStats = true
+	s.ShowInfo = true
 	s.ShowHelp = false
 
 	return &s, err
