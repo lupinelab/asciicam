@@ -1,6 +1,9 @@
 package utils
 
-import "gocv.io/x/gocv"
+import (
+
+	"gocv.io/x/gocv"
+)
 
 type Camera struct {
 	Cap        *gocv.VideoCapture
@@ -16,6 +19,8 @@ func NewCamera(device string) (*Camera, error) {
 		return nil, err
 	}
 	cam.Cap = newcam
+	cam.Cap.Set(gocv.VideoCaptureFOURCC, cam.Cap.ToCodec("MJPG"))
+	// cam.Cap.Set(gocv.VideoCaptureFPS, 0)
 
 	cam.Cap_width = cam.Cap.Get(gocv.VideoCaptureFrameWidth)
 	cam.Cap_height = cam.Cap.Get(gocv.VideoCaptureFrameHeight)
