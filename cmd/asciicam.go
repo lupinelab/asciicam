@@ -5,9 +5,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/lupinelab/asciicam/utils"
 	"github.com/lupinelab/asciicam/asciify"
+	"github.com/lupinelab/asciicam/utils"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/spf13/cobra"
@@ -19,14 +20,15 @@ var asciicamCmd = &cobra.Command{
 	Short: "Turn your camera into ASCII",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO add regex to match expected video device path
+
 		// Get camera and capabilities
 		settings, err := utils.NewSettings(args[0])
 		if err != nil {
 			fmt.Println(err.Error())
 			return
 		}
-		
+
+		// Create a tcell screen to use as a canvas
 		canvas, err := tcell.NewScreen()
 		if err != nil {
 			fmt.Println(err.Error())
@@ -38,10 +40,12 @@ var asciicamCmd = &cobra.Command{
 			return
 		}
 		defer canvas.Fini()
-		
+
+		// Default terminal style
 		defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
 		canvas.SetStyle(defStyle)
 
+		// Write a slice of strings onto the canvas as the message select screen
 		res_sel_screen := []string{}
 		res_sel_screen = append(res_sel_screen, fmt.Sprintf("Press a number key to choose a resolution:"))
 		for i, fs := range settings.Supported_resolutions {
@@ -53,7 +57,8 @@ var asciicamCmd = &cobra.Command{
 			}
 		}
 		canvas.Show()
-		
+
+		// Wait for the user to choose a resolution or exit
 		var resolution string
 	inputloop:
 		for {
@@ -63,39 +68,59 @@ var asciicamCmd = &cobra.Command{
 				if input.Key() == tcell.KeyEsc || input.Key() == tcell.KeyCtrlC {
 					canvas.Fini()
 					os.Exit(0)
-				} else {
-					for i, fs := range settings.Supported_resolutions {
-						value, err := strconv.Atoi(string(input.Rune()))
-						if err != nil {
-							goto inputloop
-						}
-						if value == i {
-							resolution = fs
-							break inputloop
-						} else {
-							goto inputloop
-						}
+				}
+				for i, fs := range settings.Supported_resolutions {
+					// Is there a better way to see the human value of a key press Rune?
+					value, err := strconv.Atoi(string(input.Rune()))
+					if err != nil {
+						goto inputloop
+					}
+					// Compare the converted rune to the numbered list items
+					if value == i {
+						resolution = fs
+						break inputloop
 					}
 				}
+				goto inputloop
 			}
 		}
+		
+		// Parse the selected resolution for the height and width
+		fWH := strings.Split(resolution, "x")
 
+		// Frame height
+		fW, err := strconv.ParseFloat(fWH[0], 32)
+		if err != nil {
+			canvas.Fini()
+			fmt.Println(err)
+		}
+		// Frame width
+		fH, err := strconv.ParseFloat(fWH[1], 32)
+		if err != nil {
+			canvas.Fini()
+			fmt.Println(err)
+		}
+
+		// Clear the canvas and show the controls
 		canvas.Clear()
 		ready_screen := []string{}
-		ready_screen = append(ready_screen, fmt.Sprint("Press Enter key when ready..."))
 		ready_screen = append(ready_screen, fmt.Sprint(""))
-		ready_screen = append(ready_screen, fmt.Sprint("Help"))
-		ready_screen = append(ready_screen, fmt.Sprint("===="))
+		ready_screen = append(ready_screen, fmt.Sprint("Controls"))
+		ready_screen = append(ready_screen, fmt.Sprint("--------------------------"))
 		for _, l := range utils.Help {
 			ready_screen = append(ready_screen, l)
 		}
+		ready_screen = append(ready_screen, fmt.Sprint("--------------------------"))
+		ready_screen = append(ready_screen, fmt.Sprint(""))
+		ready_screen = append(ready_screen, fmt.Sprint("Press Enter key when ready..."))
 		for i, l := range ready_screen {
 			for n, r := range l {
 				canvas.SetContent(n, i, r, nil, defStyle)
 			}
 		}
 		canvas.Show()
-	
+
+		// wait for user to kick things off
 	ready:
 		for {
 			input := canvas.PollEvent()
@@ -104,32 +129,26 @@ var asciicamCmd = &cobra.Command{
 				if input.Key() == tcell.KeyEsc || input.Key() == tcell.KeyCtrlC {
 					canvas.Fini()
 					os.Exit(0)
-				} else if input.Key() == tcell.KeyEnter{
+				} else if input.Key() == tcell.KeyEnter {
 					break ready
 				}
 			}
 		}
 
-		fWH := strings.Split(resolution, "x")
-		fW, err := strconv.ParseFloat(fWH[0], 32)
-		if err != nil {
-			panic(err)
-		}
-		fH, err :=  strconv.ParseFloat(fWH[1], 32)
-		if err != nil {
-			panic(err)
-		}
-
+		// The camera
 		cam, err := utils.NewCamera(args[0])
 		if err != nil {
-			panic(err)
+			canvas.Fini()
+			fmt.Println(err)
 		}
 		defer cam.Cap.Close()
+		
 		cam.Cap.Set(gocv.VideoCaptureFrameWidth, fW)
 		cam.Cap.Set(gocv.VideoCaptureFrameHeight, fH)
 
+		// Listen for control keypresses (non blocking)
 		quit := make(chan struct{})
-		go func () {
+		go func() {
 			for {
 				control := canvas.PollEvent()
 				switch control := control.(type) {
@@ -142,22 +161,34 @@ var asciicamCmd = &cobra.Command{
 					if control.Key() == tcell.KeyUp {
 						if settings.Brightness < settings.Brightness_caps["max"] {
 							settings.Brightness += 1
+							cam.Cap.Set(gocv.VideoCaptureBrightness, settings.Brightness)
 						}
 					}
 					if control.Key() == tcell.KeyDown {
 						if settings.Brightness > settings.Brightness_caps["min"] {
 							settings.Brightness -= 1
+							cam.Cap.Set(gocv.VideoCaptureBrightness, settings.Brightness)
 						}
 					}
 					// Contrast controls
 					if control.Key() == tcell.KeyRight {
 						if settings.Contrast < settings.Contrast_caps["max"] {
 							settings.Contrast += 1
+							cam.Cap.Set(gocv.VideoCaptureContrast, settings.Contrast)
 						}
 					}
 					if control.Key() == tcell.KeyLeft {
 						if settings.Contrast > settings.Contrast_caps["min"] {
 							settings.Contrast -= 1
+							cam.Cap.Set(gocv.VideoCaptureContrast, settings.Contrast)
+						}
+					}
+					// SingleColourMode control
+					if string(control.Rune()) == "m" {
+						if settings.SingleColourMode == true {
+							settings.SingleColourMode = false
+						} else if settings.SingleColourMode == false {
+							settings.SingleColourMode = true
 						}
 					}
 					// Colour Controls
@@ -191,18 +222,18 @@ var asciicamCmd = &cobra.Command{
 							settings.Colour["B"] -= 1
 						}
 					}
-					// ShowStats control
+					// ShowInfo control
 					if string(control.Rune()) == "i" {
-						if settings.ShowStats == true {
-							settings.ShowStats = false	
-						} else if settings.ShowStats == false {
-							settings.ShowStats = true
+						if settings.ShowInfo == true {
+							settings.ShowInfo = false
+						} else if settings.ShowInfo == false {
+							settings.ShowInfo = true
 						}
 					}
 					// ShowHelp control
 					if string(control.Rune()) == "h" {
 						if settings.ShowHelp == false {
-							settings.ShowHelp = true	
+							settings.ShowHelp = true
 						} else if settings.ShowHelp == true {
 							settings.ShowHelp = false
 						}
@@ -211,16 +242,20 @@ var asciicamCmd = &cobra.Command{
 			}
 		}()
 
+		// Do the business
 		frame := gocv.NewMat()
 	mainloop:
 		for {
 			select {
 			case <-quit:
+				canvas.Fini()
 				break mainloop
 			default:
-				cam.Cap.Read(&frame)
-				asciify.Asciify(cam, &frame, canvas, settings)
-				canvas.Show()
+				prev_frame_time := time.Now()
+				if cam.Cap.Read(&frame) {
+					asciify.Asciify(cam, &frame, canvas, settings, prev_frame_time)
+					canvas.Show()
+				}
 			}
 		}
 	},
