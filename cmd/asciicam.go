@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strconv"
@@ -20,12 +21,59 @@ var asciicamCmd = &cobra.Command{
 	Short: "Turn your camera into ASCII",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-
-		// Get camera and capabilities
+		// Get camera capabilities
 		settings, err := utils.NewSettings(args[0])
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println(err)
 			return
+		}
+
+		// Print the supported reolutions
+		fmt.Println("Supported resolutions:")
+		for i, fs := range settings.Supported_resolutions {
+			fmt.Printf("%v) %v\n", i, fs)
+		}
+
+		var resolution string
+	inputloop:
+		for {
+			fmt.Print("\nSelect: ")
+			reader := bufio.NewReader(os.Stdin)
+			// ReadString will block until the delimiter is entered
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("An error occured while reading input. Please try again", err)
+				goto inputloop
+			}
+			// remove the delimeter from the string
+			input = strings.TrimSuffix(input, "\n")
+			// Check for a list element whose position matches the input
+			for i, fs := range settings.Supported_resolutions {
+				value, err := strconv.Atoi(input)
+				if err != nil {
+					fmt.Printf("Invalid selection: %v\n", input)
+					goto inputloop
+				} else if value == i {
+					resolution = fs
+					break inputloop
+				}
+			}
+			fmt.Printf("Invalid selection: %v\n", input)
+			goto inputloop
+		}
+
+		// Parse the selected resolution for the height and width
+		fWH := strings.Split(resolution, "x")
+
+		// Frame height
+		fW, err := strconv.ParseFloat(fWH[0], 32)
+		if err != nil {
+			fmt.Println(err)
+		}
+		// Frame width
+		fH, err := strconv.ParseFloat(fWH[1], 32)
+		if err != nil {
+			fmt.Println(err)
 		}
 
 		// Create a tcell screen to use as a canvas
@@ -41,68 +89,11 @@ var asciicamCmd = &cobra.Command{
 		}
 		defer canvas.Fini()
 
-		// Default terminal style
+		// Use the default terminal style
 		defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
 		canvas.SetStyle(defStyle)
 
-		// Write a slice of strings onto the canvas as the message select screen
-		res_sel_screen := []string{}
-		res_sel_screen = append(res_sel_screen, fmt.Sprintf("Press a number key to choose a resolution:"))
-		for i, fs := range settings.Supported_resolutions {
-			res_sel_screen = append(res_sel_screen, fmt.Sprintf("%v) %v", i, fs))
-		}
-		for i, l := range res_sel_screen {
-			for n, r := range l {
-				canvas.SetContent(n, i, r, nil, defStyle)
-			}
-		}
-		canvas.Show()
-
-		// Wait for the user to choose a resolution or exit
-		var resolution string
-	inputloop:
-		for {
-			input := canvas.PollEvent()
-			switch input := input.(type) {
-			case *tcell.EventKey:
-				if input.Key() == tcell.KeyEsc || input.Key() == tcell.KeyCtrlC {
-					canvas.Fini()
-					os.Exit(0)
-				}
-				for i, fs := range settings.Supported_resolutions {
-					// Is there a better way to see the human value of a key press Rune?
-					value, err := strconv.Atoi(string(input.Rune()))
-					if err != nil {
-						goto inputloop
-					}
-					// Compare the converted rune to the numbered list items
-					if value == i {
-						resolution = fs
-						break inputloop
-					}
-				}
-				goto inputloop
-			}
-		}
-		
-		// Parse the selected resolution for the height and width
-		fWH := strings.Split(resolution, "x")
-
-		// Frame height
-		fW, err := strconv.ParseFloat(fWH[0], 32)
-		if err != nil {
-			canvas.Fini()
-			fmt.Println(err)
-		}
-		// Frame width
-		fH, err := strconv.ParseFloat(fWH[1], 32)
-		if err != nil {
-			canvas.Fini()
-			fmt.Println(err)
-		}
-
-		// Clear the canvas and show the controls
-		canvas.Clear()
+		// Show the controls
 		ready_screen := []string{}
 		ready_screen = append(ready_screen, fmt.Sprint(""))
 		ready_screen = append(ready_screen, fmt.Sprint("Controls"))
@@ -120,6 +111,21 @@ var asciicamCmd = &cobra.Command{
 		}
 		canvas.Show()
 
+		// Setup the camera
+		cam, err := utils.NewCamera(args[0])
+		if err != nil {
+			canvas.Fini()
+			fmt.Println(err)
+		}
+		defer cam.Cap.Close()
+
+		cam.Cap.Set(gocv.VideoCaptureFrameWidth, fW)
+		cam.Cap.Set(gocv.VideoCaptureFrameHeight, fH)
+		// Store the capture dims in the Camera struct, I assume it's
+		// faster to refer to this than to ask the camera itself?
+		cam.Cap_width = cam.Cap.Get(gocv.VideoCaptureFrameWidth)
+		cam.Cap_height = cam.Cap.Get(gocv.VideoCaptureFrameHeight)
+
 		// wait for user to kick things off
 	ready:
 		for {
@@ -134,17 +140,6 @@ var asciicamCmd = &cobra.Command{
 				}
 			}
 		}
-
-		// The camera
-		cam, err := utils.NewCamera(args[0])
-		if err != nil {
-			canvas.Fini()
-			fmt.Println(err)
-		}
-		defer cam.Cap.Close()
-		
-		cam.Cap.Set(gocv.VideoCaptureFrameWidth, fW)
-		cam.Cap.Set(gocv.VideoCaptureFrameHeight, fH)
 
 		// Listen for control keypresses (non blocking)
 		quit := make(chan struct{})
@@ -244,6 +239,7 @@ var asciicamCmd = &cobra.Command{
 
 		// Do the business
 		frame := gocv.NewMat()
+		prev_frame_time := time.Now()
 	mainloop:
 		for {
 			select {
@@ -251,10 +247,23 @@ var asciicamCmd = &cobra.Command{
 				canvas.Fini()
 				break mainloop
 			default:
-				prev_frame_time := time.Now()
+				canvas.Clear()
 				if cam.Cap.Read(&frame) {
-					asciify.Asciify(cam, &frame, canvas, settings, prev_frame_time)
+					asciify.Asciify(cam, &frame, canvas, settings)
+					if settings.ShowInfo {
+						fps := int(1 / (time.Since(prev_frame_time).Seconds()))
+						for i, r := range fmt.Sprintf("FPS=%v Brightness=%v Contrast=%v Colour=[R]%v[G]%v[B]%v ",
+							fps,
+							settings.Brightness,
+							settings.Contrast,
+							settings.Colour["R"],
+							settings.Colour["G"],
+							settings.Colour["B"]) {
+								canvas.SetContent(i, 0, r, nil, defStyle)
+						}
+					}
 					canvas.Show()
+					prev_frame_time = time.Now()
 				}
 			}
 		}
