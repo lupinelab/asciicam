@@ -20,10 +20,6 @@ func NewCamera(device string) (*Camera, error) {
 	}
 	cam.Cap = newcam
 	cam.Cap.Set(gocv.VideoCaptureFOURCC, cam.Cap.ToCodec("MJPG"))
-	// cam.Cap.Set(gocv.VideoCaptureFPS, 0)
-
-	cam.Cap_width = cam.Cap.Get(gocv.VideoCaptureFrameWidth)
-	cam.Cap_height = cam.Cap.Get(gocv.VideoCaptureFrameHeight)
 
 	return &cam, err
 }
