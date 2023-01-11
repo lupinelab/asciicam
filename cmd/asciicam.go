@@ -95,15 +95,13 @@ var asciicamCmd = &cobra.Command{
 
 		// Show the controls
 		ready_screen := []string{}
-		ready_screen = append(ready_screen, fmt.Sprint(""))
-		ready_screen = append(ready_screen, fmt.Sprint("Controls"))
-		ready_screen = append(ready_screen, fmt.Sprint("--------------------------"))
-		for _, l := range utils.Help {
-			ready_screen = append(ready_screen, l)
-		}
-		ready_screen = append(ready_screen, fmt.Sprint("--------------------------"))
-		ready_screen = append(ready_screen, fmt.Sprint(""))
-		ready_screen = append(ready_screen, fmt.Sprint("Press Enter key when ready..."))
+		ready_screen = append(ready_screen, "")
+		ready_screen = append(ready_screen, "Controls")
+		ready_screen = append(ready_screen, "--------------------------")
+		ready_screen = append(ready_screen, utils.Help...)
+		ready_screen = append(ready_screen, "--------------------------")
+		ready_screen = append(ready_screen, "")
+		ready_screen = append(ready_screen, "Press Enter key when ready...")
 		for i, l := range ready_screen {
 			for n, r := range l {
 				canvas.SetContent(n, i, r, nil, defStyle)
@@ -180,9 +178,9 @@ var asciicamCmd = &cobra.Command{
 					}
 					// SingleColourMode control
 					if string(control.Rune()) == "m" {
-						if settings.SingleColourMode == true {
+						if settings.SingleColourMode {
 							settings.SingleColourMode = false
-						} else if settings.SingleColourMode == false {
+						} else if !settings.SingleColourMode {
 							settings.SingleColourMode = true
 						}
 					}
@@ -219,17 +217,17 @@ var asciicamCmd = &cobra.Command{
 					}
 					// ShowInfo control
 					if string(control.Rune()) == "i" {
-						if settings.ShowInfo == true {
+						if settings.ShowInfo {
 							settings.ShowInfo = false
-						} else if settings.ShowInfo == false {
+						} else if !settings.ShowInfo {
 							settings.ShowInfo = true
 						}
 					}
 					// ShowHelp control
 					if string(control.Rune()) == "h" {
-						if settings.ShowHelp == false {
+						if !settings.ShowHelp {
 							settings.ShowHelp = true
-						} else if settings.ShowHelp == true {
+						} else if settings.ShowHelp {
 							settings.ShowHelp = false
 						}
 					}
@@ -259,7 +257,7 @@ var asciicamCmd = &cobra.Command{
 							settings.Colour["R"],
 							settings.Colour["G"],
 							settings.Colour["B"]) {
-								canvas.SetContent(i, 0, r, nil, defStyle)
+							canvas.SetContent(i, 0, r, nil, defStyle)
 						}
 					}
 					canvas.Show()
