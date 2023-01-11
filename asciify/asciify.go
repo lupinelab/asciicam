@@ -22,7 +22,7 @@ func Asciify(cam *utils.Camera, frame *gocv.Mat, canvas tcell.Screen, settings *
 		Foreground(tcell.NewRGBColor(settings.Colour["R"], settings.Colour["G"], settings.Colour["B"]))
 	term_width, term_height := canvas.Size()
 	scale := math.Min(cam.Cap_width/float64(term_width), cam.Cap_height/float64(term_height))
-	size := image.Point{X: int(cam.Cap_width / scale), Y: int(cam.Cap_height / (scale * 1.5))}
+	size := image.Point{X: int(cam.Cap_width / scale), Y: int(cam.Cap_height / (scale * 1.8))}
 	downframe := gocv.NewMat()
 	gocv.Resize(*frame, &downframe, size, 0, 0, gocv.InterpolationArea)
 	greyframe := gocv.NewMat()
