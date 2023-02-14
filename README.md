@@ -6,10 +6,10 @@ Turns your webcam into ascii in your terminal!
 
 Ubuntu:
  - libopencv-dev
- 
-## Usage
-Where X is you webcam device number:
-```asciicam /dev/videoX```
 
 ## Build
 ```go build```
+
+## Usage
+Where X is you webcam device number:
+```asciicam /dev/videoX```
