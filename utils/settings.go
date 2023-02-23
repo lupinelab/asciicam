@@ -9,7 +9,7 @@ type Settings struct {
 	Contrast_caps         map[string]float64
 	Brightness            float64
 	Contrast              float64
-	Supported_resolutions [	]string
+	Supported_resolutions []string
 	SingleColourMode      bool
 	Colour                map[string]int32
 	ShowInfo              bool
@@ -47,6 +47,9 @@ func NewSettings(device string) (*Settings, error) {
 
 	s.Supported_resolutions = []string{}
 	resolutions := cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1196444237))
+	if len(resolutions) == 0 {
+		resolutions = cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1448695129))
+	}
 	for _, fs := range resolutions {
 		s.Supported_resolutions = append(s.Supported_resolutions, fs.GetString())
 	}
