@@ -17,11 +17,11 @@ func Asciify(cam *utils.Camera, frame *gocv.Mat, canvas tcell.Screen, settings *
 	defstyle := tcell.StyleDefault.
 		Background(tcell.ColorReset).
 		Foreground(tcell.ColorReset)
-
+	
 	pixstyle := tcell.StyleDefault.
 		Background(tcell.ColorReset).
 		Foreground(tcell.NewRGBColor(settings.Colour["R"], settings.Colour["G"], settings.Colour["B"]))
-
+	
 	term_width, term_height := canvas.Size()
 	scale := math.Min(cam.Cap_width/float64(term_width), cam.Cap_height/float64(term_height))
 	size := image.Point{X: int(cam.Cap_width / scale), Y: int(cam.Cap_height / (scale * 1.8))}
@@ -30,16 +30,16 @@ func Asciify(cam *utils.Camera, frame *gocv.Mat, canvas tcell.Screen, settings *
 	gocv.Resize(*frame, &downframe, size, 0, 0, gocv.InterpolationArea)
 	greyframe := gocv.NewMat()
 	gocv.CvtColor(downframe, &greyframe, gocv.ColorBGRToGray)
-
-	if settings.SingleColourMode {
+	
+	switch settings.SingleColourMode {
+	case true:
 		for y := 0; y < greyframe.Rows(); y++ {
 			for x := 0; x < greyframe.Cols(); x++ {
 				sym := ascii_symbols[int(float64(greyframe.GetUCharAt(y, x))/26)]
 				canvas.SetContent(x, y, sym, nil, pixstyle)
 			}
 		}
-		
-	} else {
+	case false :
 		for y := 0; y < greyframe.Rows(); y++ {
 			for x := 0; x < greyframe.Cols(); x++ {
 				pixvec := downframe.GetVecbAt(y, x)
