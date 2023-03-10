@@ -10,8 +10,8 @@ import (
 	"gocv.io/x/gocv"
 )
 
-// var ascii_symbols = []rune(string(".:-~=+*#%@"))
-var ascii_symbols = []rune(string(".,;!vlLFE$"))
+// var ascii_symbols = []rune(".:-~=+*#%@")
+var ascii_symbols = []rune(".,;!vlLFE$")
 
 func Asciify(cam *utils.Camera, frame *gocv.Mat, canvas tcell.Screen, settings *utils.Settings) {
 	defstyle := tcell.StyleDefault.
