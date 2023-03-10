@@ -30,7 +30,7 @@ var asciicamCmd = &cobra.Command{
 
 		// Print the supported reolutions
 		fmt.Println("Supported resolutions:")
-		for i, fs := range settings.Supported_resolutions {
+		for i, fs := range settings.SupportedResolutions {
 			fmt.Printf("%v) %v\n", i, fs)
 		}
 
@@ -48,7 +48,7 @@ var asciicamCmd = &cobra.Command{
 			// remove the delimeter from the string
 			input = strings.TrimSuffix(input, "\n")
 			// Check for a list element whose position matches the input
-			for i, fs := range settings.Supported_resolutions {
+			for i, fs := range settings.SupportedResolutions {
 				value, err := strconv.Atoi(input)
 				if err != nil {
 					fmt.Printf("Invalid selection: %v\n", input)
@@ -152,26 +152,26 @@ var asciicamCmd = &cobra.Command{
 					}
 					// Brightness controls
 					if control.Key() == tcell.KeyUp {
-						if settings.Brightness < settings.Brightness_caps["max"] {
+						if settings.Brightness < settings.BrightnessCaps["max"] {
 							settings.Brightness += 1
 							cam.Cap.Set(gocv.VideoCaptureBrightness, settings.Brightness)
 						}
 					}
 					if control.Key() == tcell.KeyDown {
-						if settings.Brightness > settings.Brightness_caps["min"] {
+						if settings.Brightness > settings.BrightnessCaps["min"] {
 							settings.Brightness -= 1
 							cam.Cap.Set(gocv.VideoCaptureBrightness, settings.Brightness)
 						}
 					}
 					// Contrast controls
 					if control.Key() == tcell.KeyRight {
-						if settings.Contrast < settings.Contrast_caps["max"] {
+						if settings.Contrast < settings.ContrastCaps["max"] {
 							settings.Contrast += 1
 							cam.Cap.Set(gocv.VideoCaptureContrast, settings.Contrast)
 						}
 					}
 					if control.Key() == tcell.KeyLeft {
-						if settings.Contrast > settings.Contrast_caps["min"] {
+						if settings.Contrast > settings.ContrastCaps["min"] {
 							settings.Contrast -= 1
 							cam.Cap.Set(gocv.VideoCaptureContrast, settings.Contrast)
 						}

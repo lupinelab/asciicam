@@ -5,11 +5,11 @@ import (
 )
 
 type Settings struct {
-	Brightness_caps       map[string]float64
-	Contrast_caps         map[string]float64
+	BrightnessCaps       map[string]float64
+	ContrastCaps         map[string]float64
 	Brightness            float64
 	Contrast              float64
-	Supported_resolutions []string
+	SupportedResolutions []string
 	SingleColourMode      bool
 	Colour                map[string]int32
 	ShowInfo              bool
@@ -27,31 +27,31 @@ func NewSettings(device string) (*Settings, error) {
 
 	capmap := cam_caps.GetControls()
 
-	s.Brightness_caps = make(map[string]float64)
-	s.Brightness_caps["min"] = float64(capmap[webcam.ControlID(0x00980900)].Min)
-	s.Brightness_caps["max"] = float64(capmap[webcam.ControlID(0x00980900)].Max)
+	s.BrightnessCaps = make(map[string]float64)
+	s.BrightnessCaps["min"] = float64(capmap[webcam.ControlID(0x00980900)].Min)
+	s.BrightnessCaps["max"] = float64(capmap[webcam.ControlID(0x00980900)].Max)
 	brightness, err := cam_caps.GetControl(webcam.ControlID(0x00980900))
 	if err != nil {
 		return nil, err
 	}
 	s.Brightness = float64(brightness)
 
-	s.Contrast_caps = make(map[string]float64)
-	s.Contrast_caps["min"] = float64(capmap[webcam.ControlID(0x00980901)].Min)
-	s.Contrast_caps["max"] = float64(capmap[webcam.ControlID(0x00980901)].Max)
+	s.ContrastCaps = make(map[string]float64)
+	s.ContrastCaps["min"] = float64(capmap[webcam.ControlID(0x00980901)].Min)
+	s.ContrastCaps["max"] = float64(capmap[webcam.ControlID(0x00980901)].Max)
 	contrast, err := cam_caps.GetControl(webcam.ControlID(0x00980901))
 	if err != nil {
 		return nil, err
 	}
 	s.Contrast = float64(contrast)
 
-	s.Supported_resolutions = []string{}
+	s.SupportedResolutions = []string{}
 	resolutions := cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1196444237))
 	if len(resolutions) == 0 {
 		resolutions = cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1448695129))
 	}
 	for _, fs := range resolutions {
-		s.Supported_resolutions = append(s.Supported_resolutions, fs.GetString())
+		s.SupportedResolutions = append(s.SupportedResolutions, fs.GetString())
 	}
 
 	s.SingleColourMode = true
