@@ -237,7 +237,17 @@ var asciicamCmd = &cobra.Command{
 
 		// Do the business
 		frame := gocv.NewMat()
-		prev_frame_time := time.Now()
+		
+		frameCount := 0
+		var fps int
+		go func() {
+			for {
+				fps = frameCount
+				frameCount = 0
+				time.Sleep(time.Second)
+			}
+		}()
+
 	mainloop:
 		for {
 			select {
@@ -249,7 +259,6 @@ var asciicamCmd = &cobra.Command{
 				if cam.Cap.Read(&frame) {
 					asciify.Asciify(cam, &frame, canvas, settings)
 					if settings.ShowInfo {
-						fps := int(1 / (time.Since(prev_frame_time).Seconds()))
 						for i, r := range fmt.Sprintf("FPS=%v Brightness=%v Contrast=%v Colour=[R]%v[G]%v[B]%v ",
 							fps,
 							settings.Brightness,
@@ -260,8 +269,8 @@ var asciicamCmd = &cobra.Command{
 							canvas.SetContent(i, 0, r, nil, defStyle)
 						}
 					}
+					frameCount += 1
 					canvas.Show()
-					prev_frame_time = time.Now()
 				}
 			}
 		}
