@@ -12,15 +12,13 @@ import (
 // var ascii_symbols = []rune(".:-~=+*#%@")
 var ascii_symbols = []rune(".,;!vlLFE$")
 
-func Asciify(frame *gocv.Mat, canvas tcell.Screen, settings *internal.Settings, termWidth int, termHeight int, scale float64, defStyle tcell.Style) (image.Point){
+func Asciify(frame *gocv.Mat, canvas tcell.Screen, settings *internal.Settings, termWidth int, termHeight int, scale float64, scaledResolution image.Point, defStyle tcell.Style) {
 	pixStyle := tcell.StyleDefault.
 		Background(tcell.ColorReset).
 		Foreground(tcell.NewRGBColor(settings.Colour["R"], settings.Colour["G"], settings.Colour["B"]))
 
-	newSize := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
-
 	downFrame := gocv.NewMat()
-	gocv.Resize(*frame, &downFrame, newSize, 0, 0, gocv.InterpolationArea)
+	gocv.Resize(*frame, &downFrame, scaledResolution, 0, 0, gocv.InterpolationArea)
 	
 	greyFrame := gocv.NewMat()
 	gocv.CvtColor(downFrame, &greyFrame, gocv.ColorBGRToGray)
@@ -46,6 +44,4 @@ func Asciify(frame *gocv.Mat, canvas tcell.Screen, settings *internal.Settings, 
 			}
 		}
 	}
-
-	return newSize
 }

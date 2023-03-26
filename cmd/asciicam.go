@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"strconv"
@@ -250,18 +251,20 @@ var asciicamCmd = &cobra.Command{
 				if cam.Capture.Read(&frame) {
 					termWidth, termHeight := canvas.Size()
 					scale := math.Min(settings.FrameWidth/float64(termWidth), settings.FrameHeight/float64(termHeight))
+					scaledResolution := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
+
 					canvas.Clear()
-					imageSize := asciify.Asciify(&frame, canvas, settings, termWidth, termHeight, scale, defStyle)
-					
+					asciify.Asciify(&frame, canvas, settings, termWidth, termHeight, scale, scaledResolution, defStyle)
+
 					// Show info
 					if settings.ShowInfo {
-						for i, r := range fmt.Sprintf("Capture=%vx%v Terminal=%vx%v Output=%vx%v Scale=%v ",
-							settings.FrameWidth,
-							settings.FrameHeight,
+						for i, r := range fmt.Sprintf("Terminal=%vx%v Capture=%vx%v Scaled=%vx%v Scale=%v ",
 							termWidth,
 							termHeight,
-							imageSize.X, 
-							imageSize.Y,
+							settings.FrameWidth,
+							settings.FrameHeight,
+							scaledResolution.X,
+							scaledResolution.Y,
 							1/scale) {
 							canvas.SetContent(i, 0, r, nil, defStyle)
 						}
@@ -279,7 +282,7 @@ var asciicamCmd = &cobra.Command{
 						if settings.ShowControls {
 							for y, l := range internal.Controls {
 								for x, r := range l {
-									canvas.SetContent(x, (imageSize.Y-len(internal.Controls))+y, r, nil, defStyle)
+									canvas.SetContent(x, (scaledResolution.Y-len(internal.Controls))+y, r, nil, defStyle)
 								}
 							}
 						}
