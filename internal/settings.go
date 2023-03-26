@@ -1,23 +1,28 @@
-package utils
+package internal
 
 import (
 	"github.com/blackjack/webcam"
 )
 
 type Settings struct {
-	BrightnessCaps       map[string]float64
-	ContrastCaps         map[string]float64
-	Brightness            float64
-	Contrast              float64
-	SupportedResolutions []string
-	SingleColourMode      bool
-	Colour                map[string]int32
-	ShowInfo              bool
-	ShowHelp              bool
+	FrameHeight    float64
+	FrameWidth     float64
+	BrightnessCaps map[string]float64
+	ContrastCaps   map[string]float64
+	Brightness     float64
+	Contrast       float64
+	// SupportedResolutions []string
+	SingleColourMode bool
+	Colour           map[string]int32
+	ShowInfo         bool
+	ShowControls     bool
 }
 
-func NewSettings(device string) (*Settings, error) {
+func NewSettings(device string, fH float64, fW float64) (*Settings, error) {
 	s := Settings{}
+
+	s.FrameHeight = fH
+	s.FrameWidth = fW
 
 	cam_caps, err := webcam.Open(device)
 	if err != nil {
@@ -45,14 +50,14 @@ func NewSettings(device string) (*Settings, error) {
 	}
 	s.Contrast = float64(contrast)
 
-	s.SupportedResolutions = []string{}
-	resolutions := cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1196444237))
-	if len(resolutions) == 0 {
-		resolutions = cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1448695129))
-	}
-	for _, fs := range resolutions {
-		s.SupportedResolutions = append(s.SupportedResolutions, fs.GetString())
-	}
+	// s.SupportedResolutions = []string{}
+	// resolutions := cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1196444237))
+	// if len(resolutions) == 0 {
+	// 	resolutions = cam_caps.GetSupportedFrameSizes(webcam.PixelFormat(1448695129))
+	// }
+	// for _, fs := range resolutions {
+	// 	s.SupportedResolutions = append(s.SupportedResolutions, fs.GetString())
+	// }
 
 	s.SingleColourMode = true
 
@@ -62,7 +67,7 @@ func NewSettings(device string) (*Settings, error) {
 	s.Colour["B"] = 121
 
 	s.ShowInfo = true
-	s.ShowHelp = false
+	s.ShowControls = false
 
 	return &s, err
 }

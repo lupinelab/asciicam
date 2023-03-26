@@ -3,13 +3,14 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/lupinelab/asciicam/asciify"
-	"github.com/lupinelab/asciicam/utils"
+	"github.com/lupinelab/asciicam/internal"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/spf13/cobra"
@@ -22,7 +23,7 @@ var asciicamCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get camera capabilities
-		settings, err := utils.NewSettings(args[0])
+		supportedResolutions, err := internal.GetSupportedResolutions(args[0])
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -30,7 +31,7 @@ var asciicamCmd = &cobra.Command{
 
 		// Print the supported reolutions
 		fmt.Println("Supported resolutions:")
-		for i, fs := range settings.SupportedResolutions {
+		for i, fs := range supportedResolutions {
 			fmt.Printf("%v) %v\n", i, fs)
 		}
 
@@ -48,7 +49,7 @@ var asciicamCmd = &cobra.Command{
 			// remove the delimeter from the string
 			input = strings.TrimSuffix(input, "\n")
 			// Check for a list element whose position matches the input
-			for i, fs := range settings.SupportedResolutions {
+			for i, fs := range supportedResolutions {
 				value, err := strconv.Atoi(input)
 				if err != nil {
 					fmt.Printf("Invalid selection: %v\n", input)
@@ -76,6 +77,13 @@ var asciicamCmd = &cobra.Command{
 			fmt.Println(err)
 		}
 
+		// Settings
+		settings, err := internal.NewSettings(args[0], fH, fW)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
 		// Create a tcell screen to use as a canvas
 		canvas, err := tcell.NewScreen()
 		if err != nil {
@@ -94,35 +102,15 @@ var asciicamCmd = &cobra.Command{
 		canvas.SetStyle(defStyle)
 
 		// Show the controls
-		ready_screen := []string{}
-		ready_screen = append(ready_screen, "")
-		ready_screen = append(ready_screen, "Controls")
-		ready_screen = append(ready_screen, "--------------------------")
-		ready_screen = append(ready_screen, utils.Help...)
-		ready_screen = append(ready_screen, "--------------------------")
-		ready_screen = append(ready_screen, "")
-		ready_screen = append(ready_screen, "Press Enter key when ready...")
-		for i, l := range ready_screen {
-			for n, r := range l {
-				canvas.SetContent(n, i, r, nil, defStyle)
-			}
-		}
-		canvas.Show()
+		internal.PrintControls(canvas, defStyle)
 
 		// Setup the camera
-		cam, err := utils.NewCamera(args[0])
+		cam, err := internal.NewCamera(args[0], *settings)
 		if err != nil {
 			canvas.Fini()
 			fmt.Println(err)
 		}
-		defer cam.Cap.Close()
-
-		cam.Cap.Set(gocv.VideoCaptureFrameWidth, fW)
-		cam.Cap.Set(gocv.VideoCaptureFrameHeight, fH)
-		// Store the capture dims in the Camera struct, I assume it's
-		// faster to refer to this than to ask the camera itself?
-		cam.Cap_width = cam.Cap.Get(gocv.VideoCaptureFrameWidth)
-		cam.Cap_height = cam.Cap.Get(gocv.VideoCaptureFrameHeight)
+		defer cam.Capture.Close()
 
 		// wait for user to kick things off
 	ready:
@@ -154,26 +142,26 @@ var asciicamCmd = &cobra.Command{
 					if control.Key() == tcell.KeyUp {
 						if settings.Brightness < settings.BrightnessCaps["max"] {
 							settings.Brightness += 1
-							cam.Cap.Set(gocv.VideoCaptureBrightness, settings.Brightness)
+							cam.Capture.Set(gocv.VideoCaptureBrightness, settings.Brightness)
 						}
 					}
 					if control.Key() == tcell.KeyDown {
 						if settings.Brightness > settings.BrightnessCaps["min"] {
 							settings.Brightness -= 1
-							cam.Cap.Set(gocv.VideoCaptureBrightness, settings.Brightness)
+							cam.Capture.Set(gocv.VideoCaptureBrightness, settings.Brightness)
 						}
 					}
 					// Contrast controls
 					if control.Key() == tcell.KeyRight {
 						if settings.Contrast < settings.ContrastCaps["max"] {
 							settings.Contrast += 1
-							cam.Cap.Set(gocv.VideoCaptureContrast, settings.Contrast)
+							cam.Capture.Set(gocv.VideoCaptureContrast, settings.Contrast)
 						}
 					}
 					if control.Key() == tcell.KeyLeft {
 						if settings.Contrast > settings.ContrastCaps["min"] {
 							settings.Contrast -= 1
-							cam.Cap.Set(gocv.VideoCaptureContrast, settings.Contrast)
+							cam.Capture.Set(gocv.VideoCaptureContrast, settings.Contrast)
 						}
 					}
 					// SingleColourMode control
@@ -184,7 +172,7 @@ var asciicamCmd = &cobra.Command{
 							settings.SingleColourMode = true
 						}
 					}
-					// Colour Controls
+					// Colour controls
 					if string(control.Rune()) == "r" {
 						if settings.Colour["R"] < 255 {
 							settings.Colour["R"] += 1
@@ -225,29 +213,33 @@ var asciicamCmd = &cobra.Command{
 					}
 					// ShowHelp control
 					if string(control.Rune()) == "h" {
-						if !settings.ShowHelp {
-							settings.ShowHelp = true
-						} else if settings.ShowHelp {
-							settings.ShowHelp = false
+						if !settings.ShowControls {
+							settings.ShowControls = true
+						} else if settings.ShowControls {
+							settings.ShowControls = false
 						}
 					}
 				}
 			}
 		}()
 
-		// Do the business
-		frame := gocv.NewMat()
-		
-		frameCount := 0
+		// FPS counter
 		var fps int
+		var frameCount int
+
 		go func() {
 			for {
-				fps = frameCount
 				frameCount = 0
-				time.Sleep(time.Second)
+				for settings.ShowInfo {
+					fps = frameCount
+					frameCount = 0
+					time.Sleep(time.Second)
+				}
 			}
 		}()
 
+		// Do the business
+		frame := gocv.NewMat()
 	mainloop:
 		for {
 			select {
@@ -255,10 +247,24 @@ var asciicamCmd = &cobra.Command{
 				canvas.Fini()
 				break mainloop
 			default:
-				canvas.Clear()
-				if cam.Cap.Read(&frame) {
-					asciify.Asciify(cam, &frame, canvas, settings)
+				if cam.Capture.Read(&frame) {
+					termWidth, termHeight := canvas.Size()
+					scale := math.Min(settings.FrameWidth/float64(termWidth), settings.FrameHeight/float64(termHeight))
+					canvas.Clear()
+					imageSize := asciify.Asciify(&frame, canvas, settings, termWidth, termHeight, scale, defStyle)
+					
+					// Show info
 					if settings.ShowInfo {
+						for i, r := range fmt.Sprintf("Capture=%vx%v Terminal=%vx%v Output=%vx%v Scale=%v ",
+							settings.FrameWidth,
+							settings.FrameHeight,
+							termWidth,
+							termHeight,
+							imageSize.X, 
+							imageSize.Y,
+							1/scale) {
+							canvas.SetContent(i, 0, r, nil, defStyle)
+						}
 						for i, r := range fmt.Sprintf("FPS=%v Brightness=%v Contrast=%v Colour=[R]%v[G]%v[B]%v ",
 							fps,
 							settings.Brightness,
@@ -266,11 +272,20 @@ var asciicamCmd = &cobra.Command{
 							settings.Colour["R"],
 							settings.Colour["G"],
 							settings.Colour["B"]) {
-							canvas.SetContent(i, 0, r, nil, defStyle)
+							canvas.SetContent(i, 1, r, nil, defStyle)
+						}
+
+						// Show controls
+						if settings.ShowControls {
+							for y, l := range internal.Controls {
+								for x, r := range l {
+									canvas.SetContent(x, (imageSize.Y-len(internal.Controls))+y, r, nil, defStyle)
+								}
+							}
 						}
 					}
-					frameCount += 1
 					canvas.Show()
+					frameCount += 1
 				}
 			}
 		}
