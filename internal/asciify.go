@@ -1,9 +1,7 @@
-package asciify
+package internal
 
 import (
 	"image"
-
-	"github.com/lupinelab/asciicam/internal"
 
 	"github.com/gdamore/tcell/v2"
 	"gocv.io/x/gocv"
@@ -12,7 +10,7 @@ import (
 // var ascii_symbols = []rune(".:-~=+*#%@")
 var ascii_symbols = []rune(".,;!vlLFE$")
 
-func Asciify(frame *gocv.Mat, canvas tcell.Screen, settings *internal.Settings, termWidth int, termHeight int, scale float64, scaledResolution image.Point, defStyle tcell.Style) {
+func Asciify(frame *gocv.Mat, canvas tcell.Screen, settings *Settings, termWidth int, termHeight int, scale float64, scaledResolution image.Point, defStyle tcell.Style) {
 	pixStyle := tcell.StyleDefault.
 		Background(tcell.ColorReset).
 		Foreground(tcell.NewRGBColor(settings.Colour["R"], settings.Colour["G"], settings.Colour["B"]))

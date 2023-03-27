@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lupinelab/asciicam/asciify"
 	"github.com/lupinelab/asciicam/internal"
 
 	"github.com/gdamore/tcell/v2"
@@ -254,7 +253,7 @@ var asciicamCmd = &cobra.Command{
 					scaledResolution := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
 
 					canvas.Clear()
-					asciify.Asciify(&frame, canvas, settings, termWidth, termHeight, scale, scaledResolution, defStyle)
+					internal.Asciify(&frame, canvas, settings, termWidth, termHeight, scale, scaledResolution, defStyle)
 
 					// Show info
 					if settings.ShowInfo {
