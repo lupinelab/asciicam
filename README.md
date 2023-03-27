@@ -1,6 +1,6 @@
 # asciicam
 
-Turns your webcam into ascii in your terminal!
+Turns your webcam into ascii in your terminal.
 
 ## Requirements
 
