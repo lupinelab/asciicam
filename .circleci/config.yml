@@ -1,0 +1,85 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/go:1.20
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: sudo apt update && sudo apt install -y libopencv-dev upx
+      - restore_cache:
+          keys:
+            - go-mod-v4-{{ checksum "go.sum" }}
+      - run:
+          name: Install mod dependancies
+          command: go mod download
+      - save_cache:
+          key: go-mod-v4-{{ checksum "go.sum" }}
+          paths:
+            - ../go/pkg/mod
+      - run:
+          name: Build
+          command: |
+            go build -ldflags="-s -w" -v
+            upx $CIRCLE_PROJECT_REPONAME
+      - persist_to_workspace:
+          root: .
+          paths:
+            - asciicam
+  release:
+    docker:
+      - image: cimg/go:1.20
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Create release
+          command: |
+            curl \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/lupinelab/$CIRCLE_PROJECT_REPONAME/releases \
+              -d '{"tag_name":"'$CIRCLE_TAG'","draft":false,"prerelease":false}'
+      - run:
+          name: Upload Assets
+          command: |
+            RELEASE_ID=$(curl -s \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/lupinelab/$CIRCLE_PROJECT_REPONAME/releases/tags/$CIRCLE_TAG \
+              | jq '.id')
+            
+            curl \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "Content-Type: $(file -b --mime-type $CIRCLE_PROJECT_REPONAME)" \
+              https://uploads.github.com/repos/lupinelab/$CIRCLE_PROJECT_REPONAME/releases/$RELEASE_ID/assets?name=$CIRCLE_PROJECT_REPONAME \
+              --data-binary @$CIRCLE_PROJECT_REPONAME
+
+workflows:
+  build-and-release:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
+      - release:
+          context: github
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v\d+\.\d+\.\d+$/
