@@ -11,7 +11,7 @@ import (
 // var ascii_symbols = []rune(".:-~=+*#%@")
 var ascii_symbols = []rune(".,;!vlLFE$")
 
-func Asciify(frame image.Image, canvas tcell.Screen, settings *Settings, termWidth int, termHeight int, scale float64, scaledResolution image.Point, defStyle tcell.Style) {
+func Asciify(frame image.Image, canvas tcell.Screen, settings *Settings, termWidth int, termHeight int, scaledResolution image.Point, defStyle tcell.Style) {
 	pixStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(
 		tcell.NewRGBColor(
 			settings.Colour["R"],
@@ -21,21 +21,7 @@ func Asciify(frame image.Image, canvas tcell.Screen, settings *Settings, termWid
 
 	downFrame := imaging.Resize(frame, scaledResolution.X, scaledResolution.Y, imaging.NearestNeighbor)
 
-	// canvas.Fini()
-	// for y := downFrame.Bounds().Min.Y; y < downFrame.Bounds().Max.Y; y++ {
-	// 	for x := downFrame.Bounds().Min.X; x < downFrame.Bounds().Max.X; x++ {
-	// 		r, g, b, _ := downFrame.At(x, y).RGBA()
-	// 		fmt.Println(r >> 8, g >> 8, b >> 8)
-	// 	}
-	// }
-
 	greyPixel := image.NewGray(image.Rect(0, 0, 1, 1))
-	// greyFrame := image.NewGray(image.Rect(0, 0, scaledResolution.X, scaledResolution.Y))
-	// for y := downFrame.Bounds().Min.Y; y < downFrame.Bounds().Max.Y; y++ {
-	// 	for x := downFrame.Bounds().Min.X; x < downFrame.Bounds().Max.X; x++ {
-	// 		greyFrame.Set(x, y, color.GrayModel.Convert(downFrame.At(x, y)))
-	// 	}
-	// }
 
 	switch settings.SingleColourMode {
 	case true:

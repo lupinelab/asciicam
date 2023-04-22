@@ -272,19 +272,12 @@ var asciicamCmd = &cobra.Command{
 					fmt.Println(err)
 				}
 
-				// for y := frame.Bounds().Min.Y; y < frame.Bounds().Max.Y; y++ {
-				// 	for x := frame.Bounds().Min.X; x < frame.Bounds().Max.X; x++ {
-				// 		r, g, b, _ := frame.At(x, y).RGBA()
-				// 		fmt.Println(r >> 8, g >> 8, b >> 8)
-				// 	}
-				// }
-
 				termWidth, termHeight := canvas.Size()
 				scale := math.Min(settings.FrameWidth/float64(termWidth), settings.FrameHeight/float64(termHeight))
 				scaledResolution := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
 
 				canvas.Clear()
-				internal.Asciify(frame, canvas, settings, termWidth, termHeight, scale, scaledResolution, defStyle)
+				internal.Asciify(frame, canvas, settings, termWidth, termHeight, scaledResolution, defStyle)
 
 				// Show info
 				if settings.ShowInfo {
