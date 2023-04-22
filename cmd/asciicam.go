@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"fmt"
 	"image"
+	_ "image/jpeg"
 	"math"
 	"os"
 	"strconv"
@@ -14,7 +17,6 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/spf13/cobra"
-	"gocv.io/x/gocv"
 )
 
 var asciicamCmd = &cobra.Command{
@@ -23,7 +25,7 @@ var asciicamCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get camera capabilities
-		supportedResolutions, err := internal.GetSupportedResolutions(args[0])
+		supportedResolutions, pixelFormat, err := internal.GetSupportedResolutions(args[0])
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -87,12 +89,12 @@ var asciicamCmd = &cobra.Command{
 		// Create a tcell screen to use as a canvas
 		canvas, err := tcell.NewScreen()
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println(err)
 			return
 		}
 		err = canvas.Init()
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Println(err)
 			return
 		}
 		defer canvas.Fini()
@@ -105,13 +107,24 @@ var asciicamCmd = &cobra.Command{
 		internal.PrintControls(canvas, defStyle)
 
 		// Setup the camera
-		cam, err := internal.NewCamera(args[0], *settings)
+		cam, err := internal.NewCamera(args[0], pixelFormat, *settings)
 		if err != nil {
 			canvas.Fini()
 			fmt.Println(err)
 		}
-		defer cam.Capture.Close()
+		defer cam.Close()
 
+		ctx, cancel := context.WithCancel(context.TODO())
+		cam.Start(ctx)
+		if err != nil {
+			canvas.Fini()
+			fmt.Println(err)
+		}
+		defer func() {
+			cancel()
+			cam.Close()
+		}()
+		
 		// wait for user to kick things off
 	ready:
 		for {
@@ -142,26 +155,26 @@ var asciicamCmd = &cobra.Command{
 					if control.Key() == tcell.KeyUp {
 						if settings.Brightness < settings.BrightnessCaps["max"] {
 							settings.Brightness += 1
-							cam.Capture.Set(gocv.VideoCaptureBrightness, settings.Brightness)
+							cam.SetControlBrightness(settings.Brightness)
 						}
 					}
 					if control.Key() == tcell.KeyDown {
 						if settings.Brightness > settings.BrightnessCaps["min"] {
 							settings.Brightness -= 1
-							cam.Capture.Set(gocv.VideoCaptureBrightness, settings.Brightness)
+							cam.SetControlBrightness(settings.Brightness)
 						}
 					}
 					// Contrast controls
 					if control.Key() == tcell.KeyRight {
 						if settings.Contrast < settings.ContrastCaps["max"] {
 							settings.Contrast += 1
-							cam.Capture.Set(gocv.VideoCaptureContrast, settings.Contrast)
+							cam.SetControlContrast(settings.Contrast)
 						}
 					}
 					if control.Key() == tcell.KeyLeft {
 						if settings.Contrast > settings.ContrastCaps["min"] {
 							settings.Contrast -= 1
-							cam.Capture.Set(gocv.VideoCaptureContrast, settings.Contrast)
+							cam.SetControlContrast(settings.Contrast)
 						}
 					}
 					// SingleColourMode control
@@ -237,9 +250,9 @@ var asciicamCmd = &cobra.Command{
 				}
 			}
 		}()
-
+		
 		// Do the business
-		frame := gocv.NewMat()
+		frames := cam.GetOutput()
 	mainloop:
 		for {
 			select {
@@ -247,48 +260,65 @@ var asciicamCmd = &cobra.Command{
 				canvas.Fini()
 				break mainloop
 			default:
-				if cam.Capture.Read(&frame) {
-					termWidth, termHeight := canvas.Size()
-					scale := math.Min(settings.FrameWidth/float64(termWidth), settings.FrameHeight/float64(termHeight))
-					scaledResolution := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
+				newFrame := <-frames
+				if err != nil {
+					canvas.Fini()
+					fmt.Println(err)
+				}
 
-					canvas.Clear()
-					internal.Asciify(&frame, canvas, settings, termWidth, termHeight, scale, scaledResolution, defStyle)
+				frame, _, err := image.Decode(bytes.NewReader(newFrame))
+				if err != nil {
+					canvas.Fini()
+					fmt.Println(err)
+				}
 
-					// Show info
-					if settings.ShowInfo {
-						for i, r := range fmt.Sprintf("Terminal=%vx%v Capture=%vx%v Scaled=%vx%v Scale=%v ",
-							termWidth,
-							termHeight,
-							settings.FrameWidth,
-							settings.FrameHeight,
-							scaledResolution.X,
-							scaledResolution.Y,
-							1/scale) {
-							canvas.SetContent(i, 0, r, nil, defStyle)
-						}
-						for i, r := range fmt.Sprintf("FPS=%v Brightness=%v Contrast=%v Colour=[R]%v[G]%v[B]%v ",
-							fps,
-							settings.Brightness,
-							settings.Contrast,
-							settings.Colour["R"],
-							settings.Colour["G"],
-							settings.Colour["B"]) {
-							canvas.SetContent(i, 1, r, nil, defStyle)
-						}
+				// for y := frame.Bounds().Min.Y; y < frame.Bounds().Max.Y; y++ {
+				// 	for x := frame.Bounds().Min.X; x < frame.Bounds().Max.X; x++ {
+				// 		r, g, b, _ := frame.At(x, y).RGBA()
+				// 		fmt.Println(r >> 8, g >> 8, b >> 8)
+				// 	}
+				// }
 
-						// Show controls
-						if settings.ShowControls {
-							for y, l := range internal.Controls {
-								for x, r := range l {
-									canvas.SetContent(x, (scaledResolution.Y-len(internal.Controls))+y, r, nil, defStyle)
-								}
+				termWidth, termHeight := canvas.Size()
+				scale := math.Min(settings.FrameWidth/float64(termWidth), settings.FrameHeight/float64(termHeight))
+				scaledResolution := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
+
+				canvas.Clear()
+				internal.Asciify(frame, canvas, settings, termWidth, termHeight, scale, scaledResolution, defStyle)
+
+				// Show info
+				if settings.ShowInfo {
+					for i, r := range fmt.Sprintf("Terminal=%vx%v Capture=%vx%v Scaled=%vx%v Scale=%v ",
+						termWidth,
+						termHeight,
+						settings.FrameWidth,
+						settings.FrameHeight,
+						scaledResolution.X,
+						scaledResolution.Y,
+						1/scale) {
+						canvas.SetContent(i, 0, r, nil, defStyle)
+					}
+					for i, r := range fmt.Sprintf("FPS=%v Brightness=%v Contrast=%v Colour=[R]%v[G]%v[B]%v ",
+						fps,
+						settings.Brightness,
+						settings.Contrast,
+						settings.Colour["R"],
+						settings.Colour["G"],
+						settings.Colour["B"]) {
+						canvas.SetContent(i, 1, r, nil, defStyle)
+					}
+
+					// Show controls
+					if settings.ShowControls {
+						for y, l := range internal.Controls {
+							for x, r := range l {
+								canvas.SetContent(x, (scaledResolution.Y-len(internal.Controls))+y, r, nil, defStyle)
 							}
 						}
 					}
-					canvas.Show()
-					frameCount += 1
 				}
+				canvas.Show()
+				frameCount += 1
 			}
 		}
 	},
