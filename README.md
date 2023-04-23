@@ -6,5 +6,5 @@ Turns your webcam into ascii in your terminal.
 ```go build```
 
 ## Usage
-Where X is you webcam device number:
+Where X is your webcam device number:
 ```asciicam /dev/videoX```
