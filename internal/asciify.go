@@ -12,6 +12,7 @@ import (
 var ascii_symbols = []rune(".,;!vlLFE$")
 
 func Asciify(frame image.Image, canvas tcell.Screen, settings *Settings, termWidth int, termHeight int, scaledResolution image.Point, defStyle tcell.Style) {
+
 	pixStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(
 		tcell.NewRGBColor(
 			settings.Colour["R"],
@@ -19,27 +20,41 @@ func Asciify(frame image.Image, canvas tcell.Screen, settings *Settings, termWid
 			settings.Colour["B"]),
 	)
 
-	downFrame := imaging.Resize(frame, scaledResolution.X, scaledResolution.Y, imaging.NearestNeighbor)
+	downFrame := imaging.Resize(
+		frame,
+		scaledResolution.X,
+		scaledResolution.Y,
+		imaging.NearestNeighbor)
 
-	greyPixel := image.NewGray(image.Rect(0, 0, 1, 1))
+	greyFrame := image.NewGray(
+		image.Rect(
+			downFrame.Bounds().Min.X,
+			downFrame.Bounds().Min.Y,
+			downFrame.Bounds().Max.X,
+			downFrame.Bounds().Max.Y,
+			),
+		)
+	for y := greyFrame.Bounds().Min.Y; y < greyFrame.Bounds().Max.Y; y++ {
+		for x := greyFrame.Bounds().Min.X; x < greyFrame.Bounds().Max.X; x++ {
+			greyFrame.Set(x, y, color.GrayModel.Convert(downFrame.At(x, y)))
+		}
+	}
 
 	switch settings.SingleColourMode {
 	case true:
-		for y := downFrame.Bounds().Min.Y; y < downFrame.Bounds().Max.Y; y++ {
-			for x := downFrame.Bounds().Min.X; x < downFrame.Bounds().Max.X; x++ {
-				greyPixel.Set(0, 0, color.GrayModel.Convert(downFrame.At(x, y)))
-				lum := greyPixel.GrayAt(0, 0).Y
-				sym := ascii_symbols[int((lum)/26)]
+		for y := greyFrame.Bounds().Min.Y; y < greyFrame.Bounds().Max.Y; y++ {
+			for x := greyFrame.Bounds().Min.X; x < greyFrame.Bounds().Max.X; x++ {
+				lum := greyFrame.GrayAt(x, y).Y
+				sym := ascii_symbols[int(lum/26)]
 				canvas.SetContent(x, y, sym, nil, pixStyle)
 			}
 		}
 	case false:
-		for y := downFrame.Bounds().Min.Y; y < frame.Bounds().Max.Y; y++ {
-			for x := downFrame.Bounds().Min.X; x < frame.Bounds().Max.X; x++ {
+		for y := downFrame.Bounds().Min.Y; y < downFrame.Bounds().Max.Y; y++ {
+			for x := downFrame.Bounds().Min.X; x < downFrame.Bounds().Max.X; x++ {
 				pixelcolour := tcell.FromImageColor(downFrame.At(x, y))
-				greyPixel.Set(0, 0, color.GrayModel.Convert(downFrame.At(x, y)))
-				lum := greyPixel.GrayAt(0, 0).Y
-				sym := ascii_symbols[int((lum)/26)]
+				lum := greyFrame.GrayAt(x, y).Y
+				sym := ascii_symbols[int(lum/26)]
 				pixStyle = tcell.StyleDefault.
 					Background(tcell.ColorReset).
 					Foreground(pixelcolour)
