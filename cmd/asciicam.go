@@ -250,6 +250,23 @@ var asciicamCmd = &cobra.Command{
 				}
 			}
 		}()
+
+		// Debug, remove me!!!!!!!!!!!!!!!!
+		canvas.Fini()
+		
+		framesForVirtualCam := make(chan image.Image)
+
+		switch settings.VirtualCam {
+		case true:
+			virtualCamDevice, err := internal.FindVirtualCams()
+			if err != nil {
+				canvas.Fini()
+				fmt.Println(err)
+				return
+			}
+			go internal.OutputToVirtualCam(framesForVirtualCam, virtualCamDevice)
+			fmt.Println("Waiting for frames")
+		}
 		
 		// Do the business
 		frames := cam.GetOutput()
@@ -277,7 +294,7 @@ var asciicamCmd = &cobra.Command{
 				scaledResolution := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
 
 				canvas.Clear()
-				internal.Asciify(frame, canvas, settings, termWidth, termHeight, scaledResolution, defStyle)
+				internal.Asciify(frame, canvas, settings, termWidth, termHeight, scale, scaledResolution, defStyle, &framesForVirtualCam)
 
 				// Show info
 				if settings.ShowInfo {

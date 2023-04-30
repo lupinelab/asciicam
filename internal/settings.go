@@ -6,16 +6,17 @@ import (
 )
 
 type Settings struct {
-	FrameHeight    float64
-	FrameWidth     float64
-	BrightnessCaps map[string]int32
-	ContrastCaps   map[string]int32
-	Brightness     int32
-	Contrast       int32
+	FrameHeight      float64
+	FrameWidth       float64
+	BrightnessCaps   map[string]int32
+	ContrastCaps     map[string]int32
+	Brightness       int32
+	Contrast         int32
 	SingleColourMode bool
 	Colour           map[string]int32
 	ShowInfo         bool
 	ShowControls     bool
+	VirtualCam       bool
 }
 
 func NewSettings(camDevice string, fH float64, fW float64) (*Settings, error) {
@@ -25,7 +26,7 @@ func NewSettings(camDevice string, fH float64, fW float64) (*Settings, error) {
 	s.FrameWidth = fW
 
 	cam_caps, err := device.Open(camDevice)
-	if err != nil { 
+	if err != nil {
 		return nil, err
 	}
 	defer cam_caps.Close()
@@ -51,6 +52,7 @@ func NewSettings(camDevice string, fH float64, fW float64) (*Settings, error) {
 
 	s.ShowInfo = true
 	s.ShowControls = false
+	s.VirtualCam = true
 
 	return &s, err
 }
