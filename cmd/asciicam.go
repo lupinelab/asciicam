@@ -6,13 +6,16 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/jpeg"
 	"math"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/lupinelab/asciicam/internal"
 
 	"github.com/gdamore/tcell/v2"
@@ -124,7 +127,7 @@ var asciicamCmd = &cobra.Command{
 			cancel()
 			cam.Close()
 		}()
-		
+
 		// wait for user to kick things off
 	ready:
 		for {
@@ -250,13 +253,63 @@ var asciicamCmd = &cobra.Command{
 				}
 			}
 		}()
-		
+
+		type Row struct {
+			y             int
+			rowDataGray   []uint8
+			rowDataColour []color.Color
+		}
+
+		workChan := make(chan *Row)
+
+		var wg sync.WaitGroup
+
+		numWorkers := 8
+
+		var ascii_symbols = []rune(".,;!vlLFE$")
+
+		for i := 0; i < numWorkers; i++ {
+			go func() {
+				for row := range workChan {
+					switch settings.SingleColourMode {
+					case true:
+						pixStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(
+							tcell.NewRGBColor(
+								settings.Colour["R"],
+								settings.Colour["G"],
+								settings.Colour["B"]),
+						)
+
+						for x := range row.rowDataGray {
+							lum := row.rowDataGray[x]
+							sym := ascii_symbols[int(lum/26)]
+							canvas.SetContent(x, row.y, sym, nil, pixStyle)
+						}
+						wg.Done()
+
+					case false:
+						for x := range row.rowDataColour {
+							pixelcolour := tcell.FromImageColor(row.rowDataColour[x])
+							lum := row.rowDataGray[x]
+							sym := ascii_symbols[int(lum/26)]
+							pixStyle := tcell.StyleDefault.
+								Background(tcell.ColorReset).
+								Foreground(pixelcolour)
+							canvas.SetContent(x, row.y, sym, nil, pixStyle)
+						}
+						wg.Done()
+					}
+				}
+			}()
+		}
+
 		// Do the business
 		frames := cam.GetOutput()
 	mainloop:
 		for {
 			select {
 			case <-quit:
+				close(workChan)
 				canvas.Fini()
 				break mainloop
 			default:
@@ -277,7 +330,58 @@ var asciicamCmd = &cobra.Command{
 				scaledResolution := image.Point{X: int(settings.FrameWidth / scale), Y: int(settings.FrameHeight / (scale * 1.8))}
 
 				canvas.Clear()
-				internal.Asciify(frame, canvas, settings, termWidth, termHeight, scaledResolution, defStyle)
+
+				downFrame := imaging.Resize(
+					frame,
+					scaledResolution.X,
+					scaledResolution.Y,
+					imaging.NearestNeighbor)
+
+				greyFrame := image.NewGray(
+					image.Rect(
+						downFrame.Bounds().Min.X,
+						downFrame.Bounds().Min.Y,
+						downFrame.Bounds().Max.X,
+						downFrame.Bounds().Max.Y,
+					),
+				)
+				for y := greyFrame.Bounds().Min.Y; y < greyFrame.Bounds().Max.Y; y++ {
+					for x := greyFrame.Bounds().Min.X; x < greyFrame.Bounds().Max.X; x++ {
+						greyFrame.Set(x, y, color.GrayModel.Convert(downFrame.At(x, y)))
+					}
+				}
+
+				switch settings.SingleColourMode {
+				case true:
+					for y := greyFrame.Bounds().Min.Y; y < greyFrame.Bounds().Max.Y; y++ {
+						rowData := greyFrame.Pix[y*greyFrame.Stride : ((y * greyFrame.Stride) + greyFrame.Stride)]
+						row := Row{
+							y: y,
+							rowDataGray: rowData,
+							rowDataColour: nil,
+						}
+						wg.Add(1)
+						workChan <- &row
+					}
+
+				case false:
+					for y := downFrame.Bounds().Min.Y; y < downFrame.Bounds().Max.Y; y++ {
+						rowDataGray := greyFrame.Pix[y*greyFrame.Stride : ((y * greyFrame.Stride) + greyFrame.Stride)]
+						var rowDataColour []color.Color
+						for x := downFrame.Bounds().Min.X; x < downFrame.Bounds().Max.X; x++ {
+							rowDataColour = append(rowDataColour ,downFrame.At(x, y))
+						}
+						row := Row{
+							y: y,
+							rowDataGray: rowDataGray,
+							rowDataColour: rowDataColour,
+						}
+						wg.Add(1)
+						workChan <- &row
+					}
+				}
+
+				wg.Wait()
 
 				// Show info
 				if settings.ShowInfo {
